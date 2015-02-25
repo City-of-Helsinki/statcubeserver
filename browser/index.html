@@ -70,6 +70,8 @@ index = (param) ->
 		container = $('<div class="container-fluid">').appendTo $ 'body'
 		el = $('<div class="row resource_list">').appendTo container
 		for name, resource of resources['_embedded']
+			if not resource.metadata.label? and resource.metadata.title?
+				resource.metadata['label'] = resource.metadata.title
 			el.append(resource_template(resource))
 
 resource = (url, param) ->
@@ -90,6 +92,8 @@ resource = (url, param) ->
 	resource_promise = $.getJSON(url)
 
 	resource_promise.done (resource) ->
+		if not resource.metadata.label? and resource.metadata.title?
+			resource.metadata['label'] = resource.metadata.title
 		formats = {}
 		for rel, link of resource._links
 			formats[rel] = link
