@@ -8,6 +8,8 @@
 <script src="vendor/jquery-deparam.js"></script>
 <script src="vendor/underscore-min.js"></script>
 
+<script src="https://twitter.github.io/typeahead.js/releases/latest/typeahead.bundle.js"></script>
+
 <script src="vendor/bootstrap.min.js"></script>
 <script src="vendor/bootstrap-multiselect.js"></script>
 
@@ -19,6 +21,49 @@
 body {
 	margin: 8px;
 }
+.typeahead {
+	width: 500px;
+}
+.tt-query {
+  -webkit-box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075);
+     -moz-box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075);
+          box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075);
+}
+
+.tt-hint {
+  color: #999
+}
+
+.tt-dropdown-menu {
+  width: 500px;
+  margin-top: 4px;
+  padding: 4px 0;
+  background-color: #fff;
+  border: 1px solid #ccc;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  -webkit-border-radius: 4px;
+     -moz-border-radius: 4px;
+          border-radius: 4px;
+  -webkit-box-shadow: 0 5px 10px rgba(0,0,0,.2);
+     -moz-box-shadow: 0 5px 10px rgba(0,0,0,.2);
+          box-shadow: 0 5px 10px rgba(0,0,0,.2);
+}
+
+.tt-suggestion {
+  padding: 3px 20px;
+  line-height: 24px;
+}
+
+.tt-suggestion.tt-cursor {
+  color: #fff;
+  background-color: #e7e7e9;
+
+}
+
+.tt-suggestion p {
+  margin: 0;
+}
+
 .resource_list {
 	width: 100%;
 }
@@ -30,11 +75,18 @@ body {
 }
 
 .resource_pane {
-	background-color: #f7f7f9;
 	border: 2px solid #e7e7e9;
 	border-radius: 4px;
 	height: 100%;
 	padding: 8px;
+}
+
+.aluesarja_pane {
+	background-color: #f7f7f9;
+}
+
+.ymparisto_pane {
+	background-color: #e2f3e5;
 }
 
 .stat_table {
@@ -55,9 +107,15 @@ body {
 CUBESERVER_PATH = '../'
 
 index = (param) ->
+	typeahead_template = _.template """
+		<h4><a href="?resource=<%= _links.self.href %>">
+		<%= metadata.label %>
+		</a></h4>
+	"""
+
 	resource_template = _.template """
 		<div class="col-sm-3">
-		<div class="resource_pane">
+		<div class="resource_pane <%= metadata.classname%>">
 		<h3><a href="?resource=<%= _links.self.href %>">
 		<%= metadata.label %>
 		</a></h3>
@@ -69,11 +127,42 @@ index = (param) ->
 	resources_promise = $.getJSON(CUBESERVER_PATH + 'resources/')
 
 	resources_promise.done (resources) ->
+		titleheader = $('<h3>Etsi dataa</h3>').appendTo $ 'body'
+
+		#initialize typeahead with bloodhound
+		bloodhound = $('<div id="bloodhound">').appendTo $ 'body'
+		typeahead = $('<input class="typeahead" type="text" placeholder="Hyvin yksinkertainen sanahaku">').appendTo $ bloodhound
+		datasets = new Bloodhound
+			local: $.map resources['_embedded'], (resource) ->
+				resource
+			datumTokenizer: (datum) ->
+				fieldname = if datum.metadata.label? then 'label' else 'title'
+				Bloodhound.tokenizers.whitespace datum.metadata[fieldname]
+			queryTokenizer: Bloodhound.tokenizers.whitespace
+			limit: 20
+
+		datasets.initialize()
+		($ '#bloodhound .typeahead').typeahead null,
+				source: datasets.ttAdapter()
+				displayKey: 'title'
+				templates:
+					empty: 'Ei yhtään osumaa.'
+					suggestion: (data) ->
+						typeahead_template data
+
+		$('<h2>Tiedostojen lähteet: siniset laatikot: <a href="http://www.aluesarjat.fi" target="_blank">Helsingin aluesarjat</a>, vihreät laatikot: <a href="http://www.helsinginymparistotilasto.fi/" target="_blank">Helsingin ympäristötilasto</a>.</h2>').appendTo $ 'body'
+
+		#create list of elements representing the datasets
 		container = $('<div class="container-fluid">').appendTo $ 'body'
 		el = $('<div class="row resource_list">').appendTo container
 		for name, resource of resources['_embedded']
+
 			if not resource.metadata.label? and resource.metadata.title?
 				resource.metadata['label'] = resource.metadata.title
+
+			index = resource.metadata.origin_url.indexOf('aluesarjat')
+			resource.metadata['classname'] = if index > 0 then 'aluesarja_pane' else 'ymparisto_pane'
+
 			el.append(resource_template(resource))
 
 resource = (url, param) ->
